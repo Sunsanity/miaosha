@@ -1,18 +1,24 @@
 package com.miaoshaproject.miaosha.controller;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.miaoshaproject.miaosha.db.Item;
+import com.miaoshaproject.miaosha.db.Promo;
 import com.miaoshaproject.miaosha.db.Stock;
 import com.miaoshaproject.miaosha.response.CommonReturnType;
 import com.miaoshaproject.miaosha.service.IItemService;
+import com.miaoshaproject.miaosha.service.IPromoService;
 import com.miaoshaproject.miaosha.service.IStockService;
 import com.miaoshaproject.miaosha.vo.ItemVO;
+import com.miaoshaproject.miaosha.vo.PromoVO;
 import com.sun.istack.internal.NotNull;
+import org.joda.time.DateTime;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
@@ -33,6 +39,8 @@ public class ItemController extends BaseController{
     private IItemService itemService;
     @Autowired
     private IStockService stockService;
+    @Autowired
+    private IPromoService promoService;
 
     /**
      * 创建商品
@@ -71,6 +79,27 @@ public class ItemController extends BaseController{
         ItemVO itemVO = new ItemVO();
         BeanUtils.copyProperties(item, itemVO);
         itemVO.setStock(stock.getStock());
+        Promo promo = promoService.getOne(new QueryWrapper<Promo>().eq("item_id", id));
+        PromoVO promoVO = null;
+        if (Objects.nonNull(promo)){
+            promoVO = new PromoVO();
+            BeanUtils.copyProperties(promo, promoVO);
+            if (DateTime.now().isBefore(promo.getStartDate())){
+                itemVO.setPromoStatus(1);
+                itemVO.setPromoId(promo.getId());
+                itemVO.setPromoPrice(promo.getPromoItemPrice());
+                itemVO.setStartDate(promo.getStartDate());
+            }else if (DateTime.now().isAfter(promo.getEndDate())){
+                itemVO.setPromoStatus(0);
+            }else {
+                itemVO.setPromoStatus(2);
+                itemVO.setPromoId(promo.getId());
+                itemVO.setPromoPrice(promo.getPromoItemPrice());
+                itemVO.setStartDate(promo.getStartDate());
+            }
+        }
+
+        itemVO.setPromo(promoVO);
         return CommonReturnType.create(itemVO);
     }
 
