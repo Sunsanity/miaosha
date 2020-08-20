@@ -13,12 +13,14 @@ import com.sun.istack.internal.NotNull;
 import org.joda.time.DateTime;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 /**
@@ -41,6 +43,8 @@ public class ItemController extends BaseController{
     private IStockService stockService;
     @Autowired
     private IPromoService promoService;
+    @Autowired
+    private RedisTemplate redisTemplate;
 
     /**
      * 创建商品
@@ -74,9 +78,16 @@ public class ItemController extends BaseController{
      */
     @GetMapping(value = "/get")
     public CommonReturnType getItem(@NotNull Integer id) {
+        //redis存在直接返回
+        ItemVO itemVO = (ItemVO) redisTemplate.opsForValue().get("item_" + id);
+        if (Objects.nonNull(itemVO)){
+            return CommonReturnType.create(itemVO);
+        }
+
         Item item = itemService.getById(id);
         Stock stock = stockService.getOne(new QueryWrapper<Stock>().eq("item_id", id));
-        ItemVO itemVO = new ItemVO();
+
+        itemVO = new ItemVO();
         BeanUtils.copyProperties(item, itemVO);
         itemVO.setStock(stock.getStock());
         Promo promo = promoService.getOne(new QueryWrapper<Promo>().eq("item_id", id));
@@ -100,6 +111,9 @@ public class ItemController extends BaseController{
         }
 
         itemVO.setPromo(promoVO);
+        //存入redis
+        redisTemplate.opsForValue().set("item_" + id, itemVO);
+        redisTemplate.expire("item_" + id, 10, TimeUnit.MINUTES);
         return CommonReturnType.create(itemVO);
     }
 
