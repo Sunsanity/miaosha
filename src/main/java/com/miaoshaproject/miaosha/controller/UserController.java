@@ -11,6 +11,7 @@ import com.miaoshaproject.miaosha.service.UserService;
 import com.miaoshaproject.miaosha.vo.UserVO;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.web.bind.annotation.*;
 import sun.misc.BASE64Encoder;
 
@@ -21,6 +22,8 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Objects;
 import java.util.Random;
+import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 /**
  * <p>
@@ -41,6 +44,8 @@ public class UserController extends BaseController{
     private HttpServletRequest httpServletRequest;
     @Autowired
     private IPasswordService passwordService;
+    @Autowired
+    private RedisTemplate redisTemplate;
 
     @PostMapping(value = "/get", consumes = {CONTENT_TYPE_FORMED})
     public CommonReturnType users(@RequestParam("id") Integer id) throws BusinessException {
@@ -118,8 +123,11 @@ public class UserController extends BaseController{
             throw new BusinessException(EmBusinessError.USER_LOGIN_FAIL);
         }
 
-        httpServletRequest.getSession().setAttribute("IS_LOGIN", true);
-        httpServletRequest.getSession().setAttribute("LOGIN_USER", user);
-        return CommonReturnType.create(null);
+        //用户会话信息存入redis
+        String token = UUID.randomUUID().toString();
+        redisTemplate.opsForValue().set(token, user);
+        redisTemplate.expire(token, 1, TimeUnit.HOURS);
+
+        return CommonReturnType.create(token);
     }
 }
